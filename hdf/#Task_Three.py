@@ -179,40 +179,44 @@ class lvisGround(lvisData):
     
 if __name__=="__main__":
   
-    fileList = glob('/geos/netdata/oosa/assignment/lvis/2015/*1.h5')
+    fileList = glob('/geos/netdata/oosa/assignment/lvis/2015/*.h5')
     output_dir = '/home/s2478921/oose/final-assessment-Milsdvy23/hdf'
 
     for filename in fileList:
 
-         #'''b=lvisGround(filename,onlyBounds=True)
+         b=lvisGround(filename,onlyBounds=True)
 
-         #x0=b.bounds[0]
-         #y0=b.bounds[1]
-         #x1=(b.bounds[2]-b.bounds[0])/1+b.bounds[0]
-         #y1=(b.bounds[3]-b.bounds[1])/1+b.bounds[1]
+         x0=b.bounds[0]
+         y0=b.bounds[1]
+         x1=(b.bounds[2]-b.bounds[0])/1+b.bounds[0]
+         y1=(b.bounds[3]-b.bounds[1])/1+b.bounds[1]
 
-         #lvis=lvisGround(filename,minX=x0,minY=y0,maxX=x1,maxY=y1)
+         lvis=lvisGround(filename,minX=x0,minY=y0,maxX=x1,maxY=y1)
 
-         #lvis.setElevations()
+         lvis.setElevations()
 
-         #lvis.estimateGround()
+         lvis.estimateGround()
 
-         #lvis.writeTiff(data=lvis.zG, x=lvis.lon, y=lvis.lat, res=40)
+         lvis.writeTiff(data=lvis.zG, x=lvis.lon, y=lvis.lat, res=40)
 
-         #base_name = os.path.basename(filename).replace('.h5', '.tif')
-         #output_filename = os.path.join(output_dir, base_name)
+         base_name = os.path.basename(filename).replace('.h5', '.tif')
+         output_filename = os.path.join(output_dir, base_name)
 
-         #lvis.writeTiff(data=lvis.zG, x=lvis.lon, y=lvis.lat, res=0.001, epsg=4326, filename=output_filename)'''
+         lvis.writeTiff(data=lvis.zG, x=lvis.lon, y=lvis.lat, res=0.001, epsg=4326, filename=output_filename)
 
-         tif = glob('/home/s2478921/oose/final-assessment-Milsdvy23/hdf/*1.tif')
+         tif = glob('/home/s2478921/oose/final-assessment-Milsdvy23/hdf/*.tif')
 
+#Task_Three and Four- Merging Datasets and gap filling
 import os
 from glob import glob
 from osgeo import gdal
 
+gdal.UseExceptions()  # Enable GDAL exceptions for better error messages
+
 # Define paths
 dir_path = '/home/s2478921/oose/final-assessment-Milsdvy23/hdf/'
-out_path = '/home/s2478921/scratch/mosaic3.tif'
+out_path = '/home/s2478921/scratch/mosaic5.tif'
+temp_out_path = '/home/s2478921/scratch/temp_mosaic.tif'  # Use full path
 
 # Get list of TIFF files
 file_list = glob(os.path.join(dir_path, '*1.tif'))
@@ -227,8 +231,37 @@ else:
 vrt = gdal.BuildVRT('merged.vrt', file_list)
 
 if vrt is not None:
-    gdal.Translate(out_path, vrt, format='GTiff')
-    print(f"Mosaic saved to {out_path}")
+    try:
+        # Translate VRT to a temporary TIFF
+        result = gdal.Translate(temp_out_path, vrt, format='GTiff')
+        
+        if result is None:
+            raise Exception("Failed to translate VRT to TIFF.")
+        
+        # Open the temporary TIFF
+        ds = gdal.Open(temp_out_path, gdal.GA_Update)
+        
+        if ds is None:
+            raise Exception("Failed to open the temporary TIFF.")
+        
+        # Fill nodata
+        gdal.FillNodata(targetBand=ds.GetRasterBand(1),
+                        maskBand=None, 
+                        maxSearchDist=100, 
+                        smoothingIterations=0)
+        
+        # Save the filled output
+        gdal.Translate(out_path, ds, format='GTiff')
+        
+        print(f"Mosaic with gaps filled saved to {out_path}")
+        
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        # Clean up datasets and temporary files
+        ds = None
+        if os.path.exists(temp_out_path):
+            os.remove(temp_out_path)
 else:
     print("Failed to create VRT.")
 
@@ -237,52 +270,6 @@ vrt = None
 
 
 
-'''import os
-import numpy as np
-import glob
-import rasterio
-from rasterio.merge import merge
-from rasterio.plot import show
-
-# Define input and output paths
-dir_path = '/home/s2478921/oose/final-assessment-Milsdvy23/hdf/'
-out_path = '/home/s2478921/scratch/mosaic2.tif'
-
-# Define search criteria for TIF files
-search_criteria = "*1.tif"
-q = os.path.join(dir_path, search_criteria)
-print(q)
-# Get list of file paths matching the search criteria
-dem_fps = glob.glob(q)
-
-print(dem_fps)
-
-src_files_to_mosaic = []
-
-for fp in dem_fps:
-  src = rasterio.open(fp)
-  src_files_to_mosaic.append(src)
-
-print(src_files_to_mosaic)
-
-mosaic, out_trans = merge(src_files_to_mosaic)
-
-plt.imshow(mosaic[0], cmap='terrain')
-plt.show()
-
-out_meta = src.meta.copy()
-
-out_meta.update({"driver": "GTiff",
-                     "height": mosaic.shape[1],
-                   "width": mosaic.shape[2],
-                     "transform": out_trans,
-                     "count": mosaic.shape[0],
-                     "dtype": mosaic.dtype,
-                     }
-                    )
-
-with rasterio.open(out_path, "w", **out_meta) as dest:
-  dest.write(mosaic)'''
 
 
 
