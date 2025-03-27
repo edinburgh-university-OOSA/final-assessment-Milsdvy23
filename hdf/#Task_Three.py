@@ -61,7 +61,6 @@ class lvisGround(lvisData):
     # find centre of gravity of remaining signal
     self.CofG()
 
-
   #######################################################
 
   def setThreshold(self,sigThresh):
@@ -70,7 +69,6 @@ class lvisGround(lvisData):
     '''
     threshold=self.meanNoise+sigThresh*self.stdevNoise
     return(threshold)
-
 
   #######################################################
 
@@ -88,7 +86,6 @@ class lvisGround(lvisData):
     for i in range(0,self.nWaves):
       if(np.sum(self.denoised[i])>0.0):   # avoid empty waveforms (clouds etc)
         self.zG[i]=np.average(self.z[i],weights=self.denoised[i])  # centre of gravity
-
 
   ##############################################
 
@@ -108,7 +105,6 @@ class lvisGround(lvisData):
     for i in range(0,self.nWaves):
       self.meanNoise[i]=np.mean(self.waves[i,0:noiseBins])
       self.stdevNoise[i]=np.std(self.waves[i,0:noiseBins])
-
 
   ##############################################
 
@@ -138,8 +134,7 @@ class lvisGround(lvisData):
       self.denoised[i]=gaussian_filter1d(self.denoised[i],sWidth/res)
 
   def writeTiff(self, data, x, y, res, filename="lvis_image.tif", epsg=4326):
-  
-    #Make a geotiff from an array of points with average elevation calculation
+
     minX = np.min(x)
     maxX = np.max(x)
     minY = np.min(y)
@@ -161,7 +156,7 @@ class lvisGround(lvisData):
 
     validPixels = count > 0
     imageArr[validPixels] = elevationSum[validPixels] / count[validPixels]
-    imageArr[imageArr == -999.0] = np.nan
+    imageArr[imageArr == -999.0]
     geotransform = (minX, res, 0, maxY, 0, -res)
 
     dst_ds = gdal.GetDriverByName('GTiff').Create(filename, nX, nY, 1, gdal.GDT_Float32)
@@ -176,99 +171,136 @@ class lvisGround(lvisData):
 
     print("Image written to", filename)
     return
-    
-if __name__=="__main__":
   
-    fileList = glob('/geos/netdata/oosa/assignment/lvis/2015/*.h5')
-    output_dir = '/home/s2478921/oose/final-assessment-Milsdvy23/hdf'
+def to_360_range(lon):
+    return lon if lon >= 0 else lon + 360
 
-    for filename in fileList:
+import gc
 
-         b=lvisGround(filename,onlyBounds=True)
+def process_files_in_batches(file_list, batch_size, scratch_dir):
 
-         x0=b.bounds[0]
-         y0=b.bounds[1]
-         x1=(b.bounds[2]-b.bounds[0])/1+b.bounds[0]
-         y1=(b.bounds[3]-b.bounds[1])/1+b.bounds[1]
+    for i in range(0, len(file_list), batch_size):
+        batch = file_list[i:i + batch_size]
+        for filename in batch:
+            b = lvisGround(filename, onlyBounds=True)
 
-         lvis=lvisGround(filename,minX=x0,minY=y0,maxX=x1,maxY=y1)
+            file_min_lon = to_360_range(b.bounds[0])
+            file_max_lon = to_360_range(b.bounds[2])
+            file_min_lat = b.bounds[1]
+            file_max_lat = b.bounds[3]
 
-         lvis.setElevations()
+            overlaps_lon = (file_min_lon < fixed_max_lon and file_max_lon > fixed_min_lon)
+            overlaps_lat = (file_min_lat < fixed_max_lat and file_max_lat > fixed_min_lat)
 
-         lvis.estimateGround()
+            if overlaps_lon and overlaps_lat:
+                lvis = lvisGround(
+                   filename, minX=file_min_lon, minY=file_min_lat,
+                   maxX=file_max_lon, maxY=file_max_lat)
 
-         lvis.writeTiff(data=lvis.zG, x=lvis.lon, y=lvis.lat, res=40)
+                lvis.setElevations()
+                lvis.estimateGround()
 
-         base_name = os.path.basename(filename).replace('.h5', '.tif')
-         output_filename = os.path.join(output_dir, base_name)
+                lvis.writeTiff(data=lvis.zG, x=lvis.lon, y=lvis.lat, res=150)
 
-         lvis.writeTiff(data=lvis.zG, x=lvis.lon, y=lvis.lat, res=0.001, epsg=4326, filename=output_filename)
+                base_name = os.path.basename(filename).replace('.h5', '.tif')
+                output_filename = os.path.join(scratch_dir, base_name)
 
-         tif = glob('/home/s2478921/oose/final-assessment-Milsdvy23/hdf/*.tif')
+                lvis.writeTiff(data=lvis.zG, x=lvis.lon, y=lvis.lat, res=150, epsg=4326, filename=output_filename)
 
-#Task_Three and Four- Merging Datasets and gap filling
-import os
+                del lvis
+                gc.collect()
+
+import rasterio
+from rasterio.merge import merge
 from glob import glob
-from osgeo import gdal
+import os
 
-gdal.UseExceptions()  # Enable GDAL exceptions for better error messages
+def merge_tiff_files(scratch_dir, output_tiff_path):
+    
+    file_list = glob(os.path.join(scratch_dir, "*.tif"))
+    
+    src_files_to_mosaic = [rasterio.open(fp) for fp in file_list]
 
-# Define paths
-dir_path = '/home/s2478921/oose/final-assessment-Milsdvy23/hdf/'
-out_path = '/home/s2478921/scratch/mosaic5.tif'
-temp_out_path = '/home/s2478921/scratch/temp_mosaic.tif'  # Use full path
+  
+    mosaic, out_trans = merge(src_files_to_mosaic)
+    
+    out_meta = src_files_to_mosaic[0].meta.copy()
+    out_meta.update({
+        "driver": "GTiff",
+        "height": mosaic.shape[1],
+        "width": mosaic.shape[2],
+        "transform": out_trans,
+        "crs": src_files_to_mosaic[0].crs
+    })
 
-# Get list of TIFF files
-file_list = glob(os.path.join(dir_path, '*1.tif'))
+    with rasterio.open(output_tiff_path, "w", **out_meta) as dest:
+        dest.write(mosaic)
+    
+    for src in src_files_to_mosaic:
+        src.close()
 
-# Check if files were found
-if not file_list:
-    print("No TIFF files found.")
-else:
-    print(f"Found {len(file_list)} TIFF files.")
+from scipy.ndimage import convolve
 
-# Use GDAL to merge the files
-vrt = gdal.BuildVRT('merged.vrt', file_list)
+def fill_gaps_in_dem(input_path, output_path, nodata_value=-999):
+    
+    with rasterio.open(input_path) as src:
+        data = src.read(1)
+        mask = data == nodata_value
 
-if vrt is not None:
-    try:
-        # Translate VRT to a temporary TIFF
-        result = gdal.Translate(temp_out_path, vrt, format='GTiff')
+        kernel = np.ones((3, 3))
+
+        mask_inv = np.logical_not(mask)
+        convolved = convolve(data * mask_inv, kernel, mode='constant', cval=0.0)
+        weight = convolve(mask_inv.astype(float), kernel, mode='constant', cval=0.0)
         
-        if result is None:
-            raise Exception("Failed to translate VRT to TIFF.")
-        
-        # Open the temporary TIFF
-        ds = gdal.Open(temp_out_path, gdal.GA_Update)
-        
-        if ds is None:
-            raise Exception("Failed to open the temporary TIFF.")
-        
-        # Fill nodata
-        gdal.FillNodata(targetBand=ds.GetRasterBand(1),
-                        maskBand=None, 
-                        maxSearchDist=100, 
-                        smoothingIterations=0)
-        
-        # Save the filled output
-        gdal.Translate(out_path, ds, format='GTiff')
-        
-        print(f"Mosaic with gaps filled saved to {out_path}")
-        
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        # Clean up datasets and temporary files
-        ds = None
-        if os.path.exists(temp_out_path):
-            os.remove(temp_out_path)
-else:
-    print("Failed to create VRT.")
+        filled_data = np.where(mask, convolved / np.maximum(weight, 1), data)
 
-# Clean up
-vrt = None
+        out_meta = src.meta.copy()
+        out_meta.update({
+            "driver": "GTiff",
+            "dtype": 'float32',
+            "nodata": nodata_value
+        })
+
+        with rasterio.open(output_path, "w", **out_meta) as dest:
+            dest.write(filled_data, 1)
+
+import psutil
+
+def check_memory():
+    process = psutil.Process()
+    mem_info = process.memory_info()
+    return mem_info.rss / (1024 ** 2)
+
+if __name__ == "__main__":
+    fileList = glob('/geos/netdata/oosa/assignment/lvis/2015/*.h5')
+    scratch_dir = '/home/s2478921/scratch/'
+    out_path = '/home/s2478921/scratch/merged_output.tif'
+    filled_output_path = '/home/s2478921/filled_output.tif'
+    batch_size = 2
+
+    center_lat = -74.8976
+    center_lon = -99.9302
+    east_margin = 0.5
+    west_margin = 0.5
+    north_south_margin = 0.5
+    fixed_min_lon = to_360_range(center_lon - west_margin)
+    fixed_max_lon = to_360_range(center_lon + east_margin)
+    fixed_min_lat = center_lat - north_south_margin
+    fixed_max_lat = center_lat + north_south_margin
+
+    print(f"Initial Memory Usage: {check_memory()} MB")
+
+    #process_files_in_batches(fileList, batch_size, scratch_dir)
+
+    #merge_tiff_files('/home/s2478921/scratch', '/home/s2478921/merged.vrt')
+    #fill_gaps_in_dem('/home/s2478921/merged.vrt', '/home/s2478921/filled_output.tif')
+
+    #plot_dem(filled_output_path)
 
 
+
+  
 
 
 
