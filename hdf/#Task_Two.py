@@ -14,7 +14,6 @@ can be done for extra credit.
 Include a description of the code developed and an example command to show
 how to produce your DEM in your repository’s README.'''
 
-
 '''
 Some example functions for processing LVIS data
 '''
@@ -146,50 +145,79 @@ class lvisGround(lvisData):
       # smooth
       self.denoised[i]=gaussian_filter1d(self.denoised[i],sWidth/res)
 
-  def writeTiff(self, data, x, y, res, filename="lvis_image.tif", epsg=4326):
-    '''
-    Make a geotiff from an array of points with average elevation calculation
-    '''
-    minX = np.min(x)
-    maxX = np.max(x)
-    minY = np.min(y)
-    maxY = np.max(y)
+ 
+  def writeTiff(self, data,x,y,res,filename="lvis_image.tif",epsg=4326):
+      '''
+      Make a geotiff from an array of points
+      '''
+      # determine bounds
+      minX=np.min(x)
+      maxX=np.max(x)
+      minY=np.min(y)
+      maxY=np.max(y)
 
-    nX = int((maxX - minX) / res + 1)
-    nY = int((maxY - minY) / res + 1)
+      # determine image size
+      nX=int((maxX-minX)/res+1)
+      nY=int((maxY-minY)/res+1)
 
-    imageArr = np.full((nY, nX), -999.0)
-    elevationSum = np.full((nY, nX), 0.0)
-    count = np.full((nY, nX), 0)
+      # pack in to array
+      imageArr=np.full((nY,nX),-999.0)        # make an array of missing data flags
 
-    xInds = np.array(np.floor((x - minX) / res), dtype=int)
-    yInds = np.array(np.floor((maxY - y) / res), dtype=int)
+      # calculate the raster pixel index in x and y
+      xInds=np.array(np.floor((x-np.min(x))/res),dtype=int)   # need to force to int type
+      yInds=np.array(np.floor((np.max(y)-y)/res),dtype=int)
+      # floor rounds down. y is from top to bottom
 
-    for i in range(len(data)):
-        elevationSum[yInds[i], xInds[i]] += data[i]
-        count[yInds[i], xInds[i]] += 1
+      # this is a simple pack which will assign a single footprint to each pixel
+      imageArr[yInds,xInds]=data
 
-    validPixels = count > 0
-    imageArr[validPixels] = elevationSum[validPixels] / count[validPixels]
+      # set geolocation information (note geotiffs count down from top edge in Y)
+      geotransform = (minX, res, 0, maxY, 0, -res)
 
-    geotransform = (minX, res, 0, maxY, 0, -res)
+      # load data in to geotiff object
+      dst_ds = gdal.GetDriverByName('GTiff').Create(filename, nX, nY, 1, gdal.GDT_Float32)
 
-    dst_ds = gdal.GetDriverByName('GTiff').Create(filename, nX, nY, 1, gdal.GDT_Float32)
-    dst_ds.SetGeoTransform(geotransform)
-    srs = osr.SpatialReference()
-    srs.ImportFromEPSG(epsg)
-    dst_ds.SetProjection(srs.ExportToWkt())
-    dst_ds.GetRasterBand(1).WriteArray(imageArr)
-    dst_ds.GetRasterBand(1).SetNoDataValue(-999)
-    dst_ds.FlushCache()
-    dst_ds = None
+      dst_ds.SetGeoTransform(geotransform)    # specify coords
+      srs = osr.SpatialReference()            # establish encoding
+      srs.ImportFromEPSG(epsg)                # WGS84 lat/long
+      dst_ds.SetProjection(srs.ExportToWkt()) # export coords to file
+      dst_ds.GetRasterBand(1).WriteArray(imageArr)  # write image to the raster
+      dst_ds.GetRasterBand(1).SetNoDataValue(-999)  # set no data value
+      dst_ds.FlushCache()                     # write to disk
+      dst_ds = None
 
-    print("Image written to", filename)
-    return
+      print("Image written to",filename)
+      return
+  
+import matplotlib.pyplot as plt
+import rasterio
 
-if __name__=="__main__":
+def plotTiff(filename="lvis_image.tif"):
+      
+      with rasterio.open(filename) as src:
+        data = src.read(1, masked=True)
 
-  filename='/geos/netdata/oosa/assignment/lvis/2009/ILVIS1B_AQ2009_1020_R1408_049700.h5'
+        plt.figure(figsize=(10, 10))
+        plt.imshow(data, cmap='viridis')
+        plt.colorbar(label='Elevation')
+        plt.title('Raster Image')
+        plt.xlabel('X Coordinate')
+        plt.ylabel('Y Coordinate')
+        plt.gca().invert_yaxis()
+        plt.show()
+  
+if __name__ == "__main__":
+
+  parser = argparse.ArgumentParser(description='Process LVIS data into a DEM.')
+  parser.add_argument('filename', type=str, help='Path to the LVIS file')
+  parser.add_argument('resolution', type=float, help='Resolution for the DEM')
+  parser.add_argument('output', type=str, help='Output filename for the DEM')
+  args = parser.parse_args()
+  #filename='/geos/netdata/oosa/assignment/lvis/2009/ILVIS1B_AQ2009_1020_R1408_052195.h5'
+
+  filename = args.filename
+  resolution = args.resolution
+  output = args.output
 
   b=lvisGround(filename,onlyBounds=True)
 
@@ -205,5 +233,9 @@ if __name__=="__main__":
   lvis.estimateGround()
 
   lvis.writeTiff(data=lvis.zG, x=lvis.lon, y=lvis.lat, res=0.01)
-  lvis.writeRasterio(data=lvis.zG, x=lvis.lon, y=lvis.lat, res=30)
+
+  plotTiff('lvis_image.tif')
+
+  #python '#Task_Two.py' /geos/netdata/oosa/assignment/lvis/2009/ILVIS1B_AQ2009_1020_R1408_052195.h5 30 output_dem.tif
+
 #############################################################

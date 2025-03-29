@@ -173,7 +173,7 @@ class lvisGround(lvisData):
 
 if __name__=="__main__":
 
-  filename='/geos/netdata/oosa/week4/lvis_antarctica/ILVIS1B_AQ2015_1014_R1605_070717.h5'
+  filename='/geos/netdata/oosa/assignment/lvis/2009/ILVIS1B_AQ2009_1020_R1408_049700.h5'
 
   b=lvisGround(filename,onlyBounds=True)
 

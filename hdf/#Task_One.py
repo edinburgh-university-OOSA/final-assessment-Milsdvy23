@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 def getCmdArgs():
     '''Get command line arguments'''
     parser = argparse.ArgumentParser(description="Plot a specific waveform from an LVIS file")
+    parser.add_argument("filename", type=str, help="Path to the LVIS file")
     parser.add_argument("--index", type=int, required=True, help="Index of the waveform to plot")
     return parser.parse_args()
 
@@ -29,9 +30,6 @@ class plotLVIS(lvisData):
     def plotWave(self, index):
         '''Method to plot a single waveform'''
         print(f"Plotting waveform at index: {index}")
-        print(f"Waveform data: {self.waves[index]}")
-        print(f"Elevation data: {self.z[index]}")
-
         plt.figure()
         plt.plot(self.waves[index], self.z[index])
         plt.title(f'Waveform {index}')
@@ -44,9 +42,8 @@ class plotLVIS(lvisData):
 
 if __name__ == "__main__":
     '''Main block'''
-    filename = '/geos/netdata/oosa/assignment/lvis/2009/ILVIS1B_AQ2009_1020_R1408_049700.h5'
-    
     args = getCmdArgs()
+    filename = args.filename
     index = args.index
 
     b = plotLVIS(filename, onlyBounds=True)

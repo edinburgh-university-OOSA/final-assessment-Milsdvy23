@@ -36,9 +36,6 @@ class plotLVIS(lvisData):
   def plotWaves(self):
 
     '''A method to plot all waveforms'''
-    # this needs completing
-
-    w_shape = self.waves.shape[0]
 
     for i in range(10):
        plt.figure()
@@ -48,8 +45,7 @@ class plotLVIS(lvisData):
        plt.ylabel('Elevation (m)')
        plt.grid(True)
        plt.show()
-       # need to save plt to a png file 
-
+  
 
 ##########################################
 
