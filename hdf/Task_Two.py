@@ -1,38 +1,30 @@
 #Task_Two
-'''Then add the methods needed to process that same LVIS file in to a DEM of any
-chosen resolution. This will require a command line parser to provide the
-filename and the resolution at runtime, as well as some additional methods
-adding to the scripts provided. Make use of objects and inheritance where
-possible to make the code easier to maintain. Do not have duplicate code in
-your repository.
-Use this code to process a flight line of your choice over PIG to a 30 m resolution
-DEM in geotiff format. Include the DEM as a figure and a short discussion of any
-interesting features in your report. Note that the geotiff example code given uses
-data from only a single lidar spot in each geotiff pixel. A more accurate answer
-would be to calculate the average elevation of all intersecting lidar shots. This
-can be done for extra credit.
-Include a description of the code developed and an example command to show
-how to produce your DEM in your repository’s README.'''
-
-'''
-Some example functions for processing LVIS data
-'''
 
 #######################################
 
-from pyproj import Transformer
-import argparse
+# Coordinate and Spatial Manipulation
+from pyproj import Transformer, Proj, transform
+from osgeo import gdal, osr
+
+# Data Handling and Processing
+import numpy as np
+
+# Plotting and Visualization
 import matplotlib.pyplot as plt
-import os
-import numpy as np
+
+# Command-Line Arguments
+import argparse
+
+# LVIS Data Management
 from lvisClass import lvisData
-from scipy.ndimage import gaussian_filter1d 
-from pyproj import Proj, transform # package for reprojecting data
-from osgeo import gdal             # pacage for handling geotiff data
-from osgeo import osr              # pacage for handling projection information
-import numpy as np
 from lvisExample import plotLVIS
-import rasterio as rasterio
+
+# Image Processing
+from scipy.ndimage import gaussian_filter1d
+
+# File and Raster Handling
+import os
+import rasterio
 from rasterio.transform import from_origin
 
 #######################################
@@ -150,13 +142,13 @@ class lvisGround(lvisData):
       '''
       Make a geotiff from an array of points
       '''
-      # determine bounds
+      # determines bounds.
       minX=np.min(x)
       maxX=np.max(x)
       minY=np.min(y)
       maxY=np.max(y)
 
-      # determine image size
+      # determines image size.
       nX=int((maxX-minX)/res+1)
       nY=int((maxY-minY)/res+1)
 
@@ -189,53 +181,62 @@ class lvisGround(lvisData):
       print("Image written to",filename)
       return
   
-import matplotlib.pyplot as plt
-import rasterio
-
 def plotTiff(filename="lvis_image.tif"):
+      ''' Plotting tiff as a matplotlib graph using viridis colouring'''
       
+      # Reading the first wave, and applying a mask to any non-valid values
       with rasterio.open(filename) as src:
         data = src.read(1, masked=True)
-
+        # plotting a figure size as 10,10.
         plt.figure(figsize=(10, 10))
+        # setting colour as viridis.
         plt.imshow(data, cmap='viridis')
+        # setting colourbar (legend) based on the elevation.
         plt.colorbar(label='Elevation')
+        # titling and labelling using matplotlib.
         plt.title('Raster Image')
         plt.xlabel('X Coordinate')
         plt.ylabel('Y Coordinate')
         plt.gca().invert_yaxis()
         plt.show()
-  
+
+# only run if the code runs correctly.
 if __name__ == "__main__":
 
+# argument parsing
   parser = argparse.ArgumentParser(description='Process LVIS data into a DEM.')
   parser.add_argument('filename', type=str, help='Path to the LVIS file')
   parser.add_argument('resolution', type=float, help='Resolution for the DEM')
   parser.add_argument('output', type=str, help='Output filename for the DEM')
   args = parser.parse_args()
-  #filename='/geos/netdata/oosa/assignment/lvis/2009/ILVIS1B_AQ2009_1020_R1408_052195.h5'
 
+ #Retrieves filename and index from the arguments.
   filename = args.filename
   resolution = args.resolution
   output = args.output
 
+  # Initalises lvisground to draw from filename and the bounds from lvisground.
   b=lvisGround(filename,onlyBounds=True)
 
+  # Creates a new bounding box, 1/20th of the original size.
   x0=b.bounds[0]
   y0=b.bounds[1]
   x1=(b.bounds[2]-b.bounds[0])/20+b.bounds[0]
   y1=(b.bounds[3]-b.bounds[1])/20+b.bounds[1]
 
+  # processes the data within this new bounding box. 
   lvis=lvisGround(filename,minX=x0,minY=y0,maxX=x1,maxY=y1)
-
+ 
+  # drawing on set elevations function
   lvis.setElevations()
 
+  # drawing on estimate ground function.
   lvis.estimateGround()
-
+  # writing tiff, drawing on elevation, coordinates and stating resolution.
   lvis.writeTiff(data=lvis.zG, x=lvis.lon, y=lvis.lat, res=0.01)
 
   plotTiff('lvis_image.tif')
 
-  #python '#Task_Two.py' /geos/netdata/oosa/assignment/lvis/2009/ILVIS1B_AQ2009_1020_R1408_052195.h5 30 output_dem.tif
+  #python 'Task_Two.py' /geos/netdata/oosa/assignment/lvis/2009/ILVIS1B_AQ2009_1020_R1408_052195.h5 30 output_dem.tif
 
 #############################################################
