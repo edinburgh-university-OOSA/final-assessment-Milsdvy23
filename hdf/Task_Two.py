@@ -237,6 +237,4 @@ if __name__ == "__main__":
 
   plotTiff('lvis_image.tif')
 
-  #python 'Task_Two.py' /geos/netdata/oosa/assignment/lvis/2009/ILVIS1B_AQ2009_1020_R1408_052195.h5 30 output_dem.tif
-
 #############################################################
