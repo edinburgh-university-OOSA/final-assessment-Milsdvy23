@@ -74,5 +74,3 @@ if __name__ == "__main__":
     else:
         # plots the waveform.
         lvis.plotWave(index)
-
-# python 'Task_One.py' '/geos/netdata/oosa/assignment/lvis/2009/ILVIS1B_AQ2009_1020_R1408_052195.h5' --index 2000
