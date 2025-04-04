@@ -25,7 +25,6 @@ class lvisData(object):
     elevations to arrays of elevation.
     onlyBounds sets "bounds" to the corner of the area of interest
     '''
-    # call the file reader and load in to the self
     self.readLVIS(filename,minX,minY,maxX,maxY,onlyBounds)
     if(setElev):     # to save time, only read elev if wanted
       self.setElevations()
@@ -49,14 +48,12 @@ class lvisData(object):
       tempLon = (lon0 + lonN) / 2.0
       tempLat = (lat0 + latN) / 2.0
 
-      # write out bounds and leave if needed
       if (onlyBounds):
           self.lon = tempLon
           self.lat = tempLat
           self.bounds = self.dumpBounds()
           return
 
-      # determine which are in region of interest
       useInd = np.where((tempLon >= minX) & (tempLon < maxX) & (tempLat >= minY) & (tempLat < maxY))
       if (len(useInd) > 0):
           useInd = useInd[0]
@@ -66,12 +63,10 @@ class lvisData(object):
           self.nWaves = 0
           return
 
-      # save the subset of all data
       self.nWaves = len(useInd)
       self.lon = tempLon[useInd]
       self.lat = tempLat[useInd]
 
-      # load sliced arrays, to save RAM
       self.lfid = np.array(f['LFID'])[useInd]          # LVIS flight ID number
       self.lShot = np.array(f['SHOTNUMBER'])[useInd]   # the LVIS shot number, a label
       self.waves = np.array(f['RXWAVE'])[useInd]       # the received waveforms. The data
@@ -80,7 +75,6 @@ class lvisData(object):
       self.lZN = np.array(f['Z'+str(self.nBins-1)])[useInd]       # The elevation of the waveform bottom
       self.lZ0 = np.array(f['Z0'])[useInd]          # The elevation of the waveform top
   
-      # close file
       f.close()
       # return to initializer
       return
