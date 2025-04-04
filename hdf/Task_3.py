@@ -307,20 +307,12 @@ if __name__ == "__main__":
     
     if args.command == 'process_files':
         process_files(args.input_dir, args.scratch_dir)
-    
-    # process_files --input_dir /geos/netdata/oosa/assignment/lvis/2015/ --scratch_dir /home/s2478921/scratch/
 
     elif args.command == 'merge':
         merge_tif(args.scratch_dir, args.output_tif, args.year)
 
-        #python testt3.py merge --scratch_dir /home/s2478921/scratch --output_tif /home/s2478921/2015merged.vrt --year 2015
-
     elif args.command == 'reproject':
         reproject_to_3031(args.src_path, args.dest_path, args.year)
-
-        #python testt3.py reproject --src_path /home/s2478921/2015merged.vrt --dest_path /home/s2478921/reprojected_output2015.tif --year 2015
     
     elif args.command == 'fill_gaps':
         fill_gaps(args.in_path, args.out_path, args.year)
-
-        #python testt3.py fill_gaps --in_path /home/s2478921/reprojected_output2015.tif --out_path /home/s2478921/filled_output2015.tif --year 2015
